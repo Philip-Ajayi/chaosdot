@@ -1,0 +1,52 @@
+# ==========================================
+# Dependencies & Package Managers
+# ==========================================
+node_modules/
+.pnp
+.pnp.js
+
+# ==========================================
+# TypeScript & Build Output
+# ==========================================
+dist/
+build/
+*.tsbuildinfo
+
+# ==========================================
+# Environment Variables & Secrets
+# ==========================================
+.env
+.env*.local
+*.env
+.env.example
+
+# ==========================================
+# Blockchain Keystores & Validator Credentials
+# ==========================================
+# Never commit private keys, keystores, or node database states
+*keystore*/
+*keys*/
+*.seed
+*.raw
+chain-data/
+*.db
+
+# ==========================================
+# Testing & Chaos Run Artifacts
+# ==========================================
+coverage/
+.nyc_output/
+*.log
+audit-reports/
+reports/*.html
+reports/*.json
+
+# ==========================================
+# System & Editor Files
+# ==========================================
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db

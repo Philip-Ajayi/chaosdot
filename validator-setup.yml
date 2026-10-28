@@ -1,0 +1,23 @@
+version: "1.0"
+cluster:
+  network: "portaldot-mainnet"
+  consensus: "LAO-NPoS"
+  slot_duration_ms: 6000
+
+nodes:
+  primary:
+    id: "portaldot-val-01"
+    rpc_endpoint: "ws://127.0.0.1:9944"
+    keystore_path: "/var/lib/portaldot/chains/mainnet/keystore"
+    authoring: true
+
+  backup:
+    id: "portaldot-val-02"
+    rpc_endpoint: "ws://127.0.0.1:9945"
+    keystore_path: "/var/lib/portaldot/chains/mainnet/keystore_backup"
+    authoring: false
+
+pacemaker:
+  heartbeat_timeout_ms: 6000 # WARNING: Fails under high jitter; recommend 12000ms
+  failover_lock: "raft"
+  fencing_token_enabled: true

@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ChaosDot | Portaldot Slashing Resilience Fuzzer</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @keyframes pulse-red {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.8; transform: scale(1.02); }
+    }
+    .flash-alert { animation: pulse-red 0.8s infinite; }
+    .scanline {
+      background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+      background-size: 100% 2px, 3px 100%;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen font-mono selection:bg-rose-500 selection:text-white">
+
+  <!-- Header -->
+  <header class="border-b border-slate-800 bg-slate-900/60 backdrop-blur sticky top-0 z-50 px-6 py-4 flex flex-wrap justify-between items-center">
+    <div class="flex items-center gap-3">
+      <div class="w-3.5 h-3.5 rounded-full bg-rose-500 shadow-lg shadow-rose-500/50 animate-ping"></div>
+      <h1 class="text-xl font-bold tracking-wider uppercase text-white flex items-center gap-2">
+        <span>ChaosDot</span>
+        <span class="text-xs px-2 py-0.5 rounded bg-rose-950 text-rose-400 border border-rose-800">Portaldot Hacker House 2026</span>
+      </h1>
+    </div>
+    <div class="flex items-center gap-4 text-xs">
+      <div class="flex items-center gap-2 bg-slate-800/80 px-3 py-1.5 rounded-md border border-slate-700">
+        <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+        <span class="text-slate-300">Cluster: <span class="font-bold text-white">LAO DevNet</span></span>
+      </div>
+      <div class="flex items-center gap-2 bg-slate-800/80 px-3 py-1.5 rounded-md border border-slate-700">
+        <span class="text-slate-300">Target Key: <span class="font-bold text-white text-[10px]">0xd435...da27d (Alice)</span></span>
+      </div>
+      <a href="https://github.com" target="_blank" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-slate-200 transition">Docs / GitHub</a>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="max-w-7xl mx-auto p-6 space-y-6">
+
+    <!-- Equivocation Banner (Hidden by default, triggered on split-brain) -->
+    <div id="equivocationAlert" class="hidden border-2 border-rose-600 bg-rose-950/90 text-rose-200 p-5 rounded-xl shadow-2xl shadow-rose-900/40 flash-alert">
+      <div class="flex items-start gap-4">
+        <div class="text-3xl">🚨</div>
+        <div class="flex-1">
+          <div class="flex items-center justify-between">
+            <h2 class="text-lg font-bold uppercase tracking-wider text-rose-100">CRITICAL: DUAL-HEADER EQUIVOCATION DETECTED</h2>
+            <span class="text-xs px-2 py-1 bg-rose-800 text-white rounded font-bold">100% SLASH TRIGGERED</span>
+          </div>
+          <p id="equivocationDesc" class="text-sm mt-1 text-rose-300">Dual block proposals signed at identical slot by identical validator identity.</p>
+          <div class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-2 text-xs bg-black/40 p-3 rounded border border-rose-800 font-mono">
+            <div><span class="text-rose-400 font-bold">Node 1 (Primary):</span> <span id="eqHash1">0x00</span></div>
+            <div><span class="text-rose-400 font-bold">Node 2 (Backup):</span> <span id="eqHash2">0x00</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Top Grid: Telemetry & Controls -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+      <!-- Left Column: Fault Control Matrix -->
+      <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-5 shadow-sm space-y-4">
+        <div class="flex items-center justify-between">
+          <h3 class="text-sm font-semibold uppercase text-slate-400 flex items-center gap-2">
+            <span>⚡ Network Chaos Injector</span>
+          </h3>
+          <span class="text-xs px-2 py-0.5 rounded bg-slate-800 text-slate-300">Toxiproxy VNet</span>
+        </div>
+
+        <!-- Latency Slider -->
+        <div class="space-y-1">
+          <div class="flex justify-between text-xs">
+            <span class="text-slate-400">P2P Network Latency</span>
+            <span id="latencyDisplay" class="text-emerald-400 font-bold">0 ms</span>
+          </div>
+          <input id="latencySlider" type="range" min="0" max="5000" step="100" value="0" class="w-full accent-rose-500 bg-slate-800 rounded-lg h-2 cursor-pointer">
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="pt-2 grid grid-cols-1 gap-2">
+          <button id="btnStall" onclick="triggerStall()" class="w-full py-2.5 px-4 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-500 rounded text-xs font-semibold tracking-wider uppercase transition flex items-center justify-center gap-2">
+            <span>✂️ Cut Network Egress (Heartbeat Drop)</span>
+          </button>
+          <button id="btnSplitBrain" onclick="triggerSplitBrain()" class="w-full py-2.5 px-4 bg-rose-950/60 hover:bg-rose-900/80 border border-rose-800 rounded text-xs font-semibold tracking-wider uppercase text-rose-300 transition flex items-center justify-center gap-2">
+            <span>💥 Trigger Split-Brain Keystore</span>
+          </button>
+          <button id="btnBackpressure" onclick="triggerBackpressure()" class="w-full py-2.5 px-4 bg-amber-950/40 hover:bg-amber-900/60 border border-amber-800 rounded text-xs font-semibold tracking-wider uppercase text-amber-300 transition flex items-center justify-center gap-2">
+            <span>🌊 Flood Mempool (dryRun DoS)</span>
+          </button>
+        </div>
+
+        <div class="pt-4 border-t border-slate-800">
+          <button id="btnRunAudit" onclick="runCompleteAudit()" class="w-full py-3 px-4 bg-gradient-to-r from-rose-600 to-indigo-600 hover:from-rose-500 hover:to-indigo-500 text-white rounded font-bold text-xs uppercase tracking-widest shadow-lg shadow-indigo-950 transition flex items-center justify-center gap-2">
+            <span>Run Complete Autonomous Audit</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Middle & Right Columns: Nodes State & Slot Stream -->
+      <div class="lg:col-span-2 space-y-6">
+
+        <!-- Node Dual State -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <!-- Primary Node Card -->
+          <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4 relative overflow-hidden">
+            <div class="flex justify-between items-center mb-2">
+              <span class="text-xs font-bold text-slate-400">NODE 01 [PRIMARY]</span>
+              <span id="primaryBadge" class="text-[10px] px-2 py-0.5 rounded bg-emerald-950 border border-emerald-800 text-emerald-300 font-bold">AUTHORING</span>
+            </div>
+            <div class="text-xs space-y-1 text-slate-400 font-mono">
+              <div>Height: <span id="primaryHeight" class="text-white font-bold">10450</span></div>
+              <div>Egress: <span id="primaryEgress" class="text-emerald-400 font-bold">CONNECTED</span></div>
+              <div>Lock: <span id="primaryLock" class="text-indigo-400 font-bold">HELD</span></div>
+            </div>
+          </div>
+
+          <!-- Secondary Node Card -->
+          <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4 relative overflow-hidden">
+            <div class="flex justify-between items-center mb-2">
+              <span class="text-xs font-bold text-slate-400">NODE 02 [BACKUP]</span>
+              <span id="backupBadge" class="text-[10px] px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-400 font-bold">STANDBY</span>
+            </div>
+            <div class="text-xs space-y-1 text-slate-400 font-mono">
+              <div>Height: <span id="backupHeight" class="text-white font-bold">10450</span></div>
+              <div>Egress: <span id="backupEgress" class="text-emerald-400 font-bold">CONNECTED</span></div>
+              <div>Lock: <span id="backupLock" class="text-slate-500 font-bold">STANDBY</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Real-Time Slot Timeline Visualizer -->
+        <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-5">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-sm font-semibold uppercase text-slate-400">Consensus Slot Timeline</h3>
+            <span class="text-xs text-slate-500">6-sec Interval Tracking</span>
+          </div>
+          <div id="slotTimeline" class="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 gap-2 overflow-x-auto py-2">
+            <!-- Dynamic Slot Blocks Appended Here -->
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- Terminal & Audit Certification Section -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+      <!-- Terminal Output -->
+      <div class="bg-black/90 border border-slate-800 rounded-xl p-4 flex flex-col h-80 scanline">
+        <div class="flex items-center justify-between pb-2 border-b border-slate-800 mb-2">
+          <span class="text-xs text-slate-400 flex items-center gap-1.5">
+            <span class="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block"></span>
+            <span>ChaosDot Engine RPC Event Stream</span>
+          </span>
+          <button onclick="clearConsole()" class="text-[10px] text-slate-500 hover:text-slate-300">Clear</button>
+        </div>
+        <div id="terminalLogs" class="flex-1 overflow-y-auto text-xs text-emerald-400 space-y-1 font-mono pr-2">
+          <div>[INIT] ChaosDot consensus harness initialized.</div>
+          <div>[INIT] Listening on ws://127.0.0.1:9944...</div>
+        </div>
+      </div>
+
+      <!-- Audit Report Certificate Preview -->
+      <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-5 flex flex-col justify-between">
+        <div>
+          <div class="flex justify-between items-center mb-3">
+            <h3 class="text-sm font-semibold uppercase text-slate-400">Certification Summary</h3>
+            <span id="auditVerdictBadge" class="text-xs px-2.5 py-1 rounded font-bold bg-slate-800 text-slate-300">AWAITING AUDIT</span>
+          </div>
+
+          <div class="flex items-baseline gap-3 mb-4">
+            <span class="text-4xl font-extrabold text-white" id="auditScore">--</span>
+            <span class="text-xs text-slate-400">/ 100 Slashing Hardening Score</span>
+          </div>
+
+          <div id="auditRecommendations" class="space-y-2 text-xs text-slate-300 bg-slate-950/60 p-3 rounded-lg border border-slate-800/80">
+            Click "Run Complete Autonomous Audit" to execute automated fault vectors and compile deterministic certificate.
+          </div>
+        </div>
+
+        <div class="pt-4 flex gap-3">
+          <button id="btnDownloadHtml" onclick="downloadReport('html')" class="flex-1 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs font-semibold text-slate-200 transition">
+            Export HTML Certificate
+          </button>
+          <button id="btnDownloadMd" onclick="downloadReport('md')" class="flex-1 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs font-semibold text-slate-200 transition">
+            Export Markdown
+          </button>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <script>
+    let ws;
+    let latestReport = null;
+
+    function initWebSocket() {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      ws = new WebSocket(`${protocol}//${window.location.host}`);
+
+      ws.onopen = () => {
+        logConsole('[WS] Real-time ChaosDot telemetry stream active.');
+      };
+
+      ws.onmessage = (event) => {
+        const msg = JSON.parse(event.data);
+        handleServerMessage(msg);
+      };
+
+      ws.onclose = () => {
+        logConsole('[WS] Disconnected. Reconnecting in 2s...');
+        setTimeout(initWebSocket, 2000);
+      };
+    }
+
+    function handleServerMessage(msg) {
+      if (msg.type === 'log') {
+        logConsole(msg.data);
+      } else if (msg.type === 'block') {
+        renderBlockSlot(msg.data, msg.source);
+      } else if (msg.type === 'equivocation') {
+        showEquivocationAlert(msg.data);
+      } else if (msg.type === 'auditComplete') {
+        renderAuditSummary(msg.data);
+      } else if (msg.type === 'clusterStatus') {
+        updateClusterStatus(msg.data);
+      }
+    }
+
+    function logConsole(text) {
+      const container = document.getElementById('terminalLogs');
+      const div = document.createElement('div');
+      div.innerText = text;
+      container.appendChild(div);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function clearConsole() {
+      document.getElementById('terminalLogs').innerHTML = '';
+    }
+
+    function renderBlockSlot(header, source) {
+      const timeline = document.getElementById('slotTimeline');
+      const box = document.createElement('div');
+      const isBackup = source.includes('backup');
+
+      box.className = `p-2 rounded border text-[10px] flex flex-col items-center justify-center transition-all ${
+        isBackup ? 'bg-amber-950/40 border-amber-600 text-amber-200' : 'bg-slate-800/80 border-slate-700 text-slate-200'
+      }`;
+      box.innerHTML = `
+        <span class="font-bold text-slate-400">#${header.number}</span>
+        <span class="font-mono text-[9px] opacity-75">${header.hash.substring(0, 6)}</span>
+        <span class="text-[8px] mt-1 px-1 rounded ${isBackup ? 'bg-amber-800 text-white' : 'bg-slate-700 text-slate-300'}">${isBackup ? 'NODE-2' : 'NODE-1'}</span>
+      `;
+      timeline.appendChild(box);
+      if (timeline.children.length > 14) {
+        timeline.removeChild(timeline.children[0]);
+      }
+    }
+
+    function showEquivocationAlert(proof) {
+      const alert = document.getElementById('equivocationAlert');
+      alert.classList.remove('hidden');
+      document.getElementById('equivocationDesc').innerText = proof.description;
+      document.getElementById('eqHash1').innerText = proof.firstHeader.hash;
+      document.getElementById('eqHash2').innerText = proof.secondHeader.hash;
+    }
+
+    function updateClusterStatus(data) {
+      document.getElementById('primaryHeight').innerText = data.height;
+      document.getElementById('backupHeight').innerText = data.height;
+      document.getElementById('primaryEgress').innerText = data.primary.isStalled ? 'STALLED' : 'CONNECTED';
+      document.getElementById('primaryEgress').className = data.primary.isStalled ? 'text-rose-500 font-bold' : 'text-emerald-400 font-bold';
+    }
+
+    function renderAuditSummary(report) {
+      latestReport = report;
+      const scoreEl = document.getElementById('auditScore');
+      const badgeEl = document.getElementById('auditVerdictBadge');
+      const recsEl = document.getElementById('auditRecommendations');
+
+      scoreEl.innerText = report.overallHardeningScore;
+
+      if (report.verdict === 'CERTIFIED_IMMUNE') {
+        badgeEl.className = 'text-xs px-2.5 py-1 rounded font-bold bg-emerald-950 text-emerald-300 border border-emerald-700';
+        badgeEl.innerText = 'IMMUNE (100/100)';
+      } else {
+        badgeEl.className = 'text-xs px-2.5 py-1 rounded font-bold bg-rose-950 text-rose-300 border border-rose-700';
+        badgeEl.innerText = `${report.verdict} (${report.overallHardeningScore}/100)`;
+      }
+
+      recsEl.innerHTML = `
+        <div class="font-bold mb-1 text-slate-200">Required Remediations:</div>
+        <ul class="list-disc pl-4 space-y-1">
+          ${report.remediationPlan.map(r => `<li>${r}</li>`).join('')}
+        </ul>
+      `;
+    }
+
+    // Interactive Controls
+    document.getElementById('latencySlider').addEventListener('input', (e) => {
+      const val = e.target.value;
+      document.getElementById('latencyDisplay').innerText = `${val} ms`;
+      fetch('/api/toxic/latency', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ latency: parseInt(val) })
+      });
+    });
+
+    function triggerStall() {
+      fetch('/api/chaos/stall', { method: 'POST' });
+    }
+
+    function triggerSplitBrain() {
+      fetch('/api/chaos/split-brain', { method: 'POST' });
+    }
+
+    function triggerBackpressure() {
+      fetch('/api/chaos/backpressure', { method: 'POST' });
+    }
+
+    function runCompleteAudit() {
+      document.getElementById('equivocationAlert').classList.add('hidden');
+      fetch('/api/chaos/audit', { method: 'POST' });
+    }
+
+    function downloadReport(format) {
+      if (!latestReport) {
+        alert('Please run the audit first!');
+        return;
+      }
+      window.open(`/api/report/${format}`, '_blank');
+    }
+
+    window.onload = initWebSocket;
+  </script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  chaosdot:
+    build: .
+    container_name: chaosdot-control-plane
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - TOXIPROXY_URL=http://toxiproxy:8474
+    depends_on:
+      - toxiproxy
+    restart: unless-stopped
+
+  toxiproxy:
+    image: ghcr.io/shopify/toxiproxy:2.9.0
+    container_name: chaosdot-toxiproxy
+    ports:
+      - "8474:8474"
+      - "9944-9950:9944-9950"
+    restart: unless-stopped
