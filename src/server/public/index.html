@@ -16,17 +16,19 @@
 <body class="bg-slate-950 text-slate-100 min-h-screen font-mono selection:bg-rose-500 selection:text-white">
 
   <!-- Header -->
-  <header class="border-b border-slate-800 bg-slate-900/60 backdrop-blur sticky top-0 z-50 px-6 py-4 flex flex-wrap justify-between items-center">
+  <header class="border-b border-slate-800 bg-slate-900/60 backdrop-blur sticky top-0 z-50 px-6 py-4 flex flex-wrap justify-between items-center gap-4">
     <div class="flex items-center gap-3">
       <div class="w-3.5 h-3.5 rounded-full bg-rose-500 shadow-lg shadow-rose-500/50 animate-ping"></div>
       <h1 class="text-xl font-bold tracking-wider uppercase text-white flex items-center gap-2">
         <span>ChaosDot</span>
-        <span class="text-xs px-2 py-0.5 rounded bg-rose-950 text-rose-400 border border-rose-800">Production Mode</span>
+        <span id="modeBadge" class="text-xs px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800">
+          Simulation Active
+        </span>
       </h1>
     </div>
     <div class="flex items-center gap-4 text-xs">
-      <button onclick="toggleConfigModal()" class="px-3 py-1.5 bg-indigo-900/60 hover:bg-indigo-800 border border-indigo-700 rounded text-indigo-200 transition font-bold">
-        ⚙️ Edit Cluster Endpoints
+      <button onclick="toggleConfigModal()" class="px-3 py-1.5 bg-indigo-900/60 hover:bg-indigo-800 border border-indigo-700 rounded text-indigo-200 transition font-bold flex items-center gap-1">
+        ⚙️ Settings & Cluster Mode
       </button>
     </div>
   </header>
@@ -34,7 +36,26 @@
   <!-- Configuration Modal -->
   <div id="configModal" class="hidden fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
     <div class="bg-slate-900 border border-slate-700 rounded-xl max-w-2xl w-full p-6 space-y-4">
-      <h2 class="text-lg font-bold text-white uppercase">Target Cluster Configuration</h2>
+      <div class="flex justify-between items-center pb-2 border-b border-slate-800">
+        <h2 class="text-lg font-bold text-white uppercase">Cluster Configuration</h2>
+        <button onclick="toggleConfigModal()" class="text-slate-400 hover:text-white">✕</button>
+      </div>
+
+      <!-- Mode Selector -->
+      <div class="bg-slate-950 border border-slate-800 p-4 rounded-lg">
+        <label class="text-sm font-bold text-indigo-400 block mb-1">Execution Mode</label>
+        <div class="flex gap-4 text-xs mt-2">
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="radio" name="clusterMode" value="sim" id="modeSim" checked class="accent-indigo-500" />
+            <span>Virtual Consensus Simulation (Standalone Cloud Mode)</span>
+          </label>
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="radio" name="clusterMode" value="live" id="modeLive" class="accent-indigo-500" />
+            <span>Live Remote Validator RPC</span>
+          </label>
+        </div>
+      </div>
+
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
         <div>
           <label class="text-slate-400 block mb-1">Primary Node WebSocket RPC</label>
@@ -100,11 +121,11 @@
             <span class="text-slate-400">Inject Network Latency</span>
             <span id="latencyDisplay" class="text-emerald-400 font-bold">0 ms</span>
           </div>
-          <input id="latencySlider" type="range" min="0" max="5000" step="100" value="0" class="w-full accent-rose-500 bg-slate-800 rounded-lg h-2 cursor-pointer">
+          <input id="latencySlider" type="range" min="0" max="3000" step="100" value="0" class="w-full accent-rose-500 bg-slate-800 rounded-lg h-2 cursor-pointer">
         </div>
 
         <div class="pt-2 grid grid-cols-1 gap-2">
-          <button onclick="triggerStall()" class="w-full py-2 px-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs font-semibold uppercase transition">
+          <button onclick="triggerStall()" class="w-full py-2 px-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs font-semibold uppercase transition text-slate-200">
             ✂️ Sever Network Egress (Heartbeat Cut)
           </button>
           <button onclick="triggerSplitBrain()" class="w-full py-2 px-3 bg-rose-950/60 hover:bg-rose-900 border border-rose-800 rounded text-xs font-semibold uppercase text-rose-300 transition">
@@ -140,7 +161,7 @@
           <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4">
             <div class="flex justify-between items-center mb-2">
               <span class="text-xs font-bold text-slate-400">BACKUP NODE</span>
-              <span id="backupActive" class="text-[10px] px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300 font-bold">ONLINE</span>
+              <span id="backupActive" class="text-[10px] px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300 font-bold">STANDBY</span>
             </div>
             <div class="text-xs space-y-1 text-slate-400 font-mono">
               <div>Live Height: <span id="backupHeight" class="text-white font-bold">--</span></div>
@@ -162,8 +183,8 @@
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
       <div class="bg-black/90 border border-slate-800 rounded-xl p-4 flex flex-col h-80">
         <div class="flex items-center justify-between pb-2 border-b border-slate-800 mb-2">
-          <span class="text-xs text-slate-400 font-bold">Real-Time WebSocket Log Stream</span>
-          <button onclick="document.getElementById('terminalLogs').innerHTML = ''" class="text-[10px] text-slate-500">Clear</button>
+          <span class="text-xs text-slate-400 font-bold">Real-Time Consensus Event Stream</span>
+          <button onclick="document.getElementById('terminalLogs').innerHTML = ''" class="text-[10px] text-slate-500 hover:text-slate-300">Clear</button>
         </div>
         <div id="terminalLogs" class="flex-1 overflow-y-auto text-xs text-emerald-400 space-y-1 font-mono pr-2"></div>
       </div>
@@ -171,7 +192,7 @@
       <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-5 flex flex-col justify-between">
         <div>
           <div class="flex justify-between items-center mb-3">
-            <h3 class="text-sm font-semibold uppercase text-slate-400">Slashing Audit Certificate</h3>
+            <h3 class="text-sm font-semibold uppercase text-slate-400">Slashing Resilience Certificate</h3>
             <span id="auditVerdictBadge" class="text-xs px-2.5 py-1 rounded font-bold bg-slate-800 text-slate-300">IDLE</span>
           </div>
 
@@ -181,7 +202,7 @@
           </div>
 
           <div id="auditRecommendations" class="space-y-2 text-xs text-slate-300 bg-slate-950/60 p-3 rounded-lg border border-slate-800">
-            Awaiting audit initiation. Click "Run Complete Slashing Audit" to test live node boundaries.
+            Awaiting audit initiation. Click "Run Complete Slashing Audit" to test consensus and keystore safety boundaries.
           </div>
         </div>
 
@@ -214,6 +235,7 @@
         if (msg.type === 'equivocation') showEquivocationAlert(msg.data);
         if (msg.type === 'auditComplete') renderAuditSummary(msg.data);
         if (msg.type === 'clusterStatus') updateClusterStatus(msg.data);
+        if (msg.type === 'configUpdated') updateBadge(msg.data.simulationMode);
       };
 
       ws.onclose = () => setTimeout(initWebSocket, 2000);
@@ -228,9 +250,29 @@
       document.getElementById('cfgBackupProxy').value = currentConfig.backupNode.proxyName;
       document.getElementById('cfgToxiproxyUrl').value = currentConfig.toxiproxyUrl;
       document.getElementById('cfgValidatorKey').value = currentConfig.primaryNode.authoringKey;
+
+      if (currentConfig.simulationMode) {
+        document.getElementById('modeSim').checked = true;
+      } else {
+        document.getElementById('modeLive').checked = true;
+      }
+      updateBadge(currentConfig.simulationMode);
+    }
+
+    function updateBadge(isSim) {
+      const b = document.getElementById('modeBadge');
+      if (isSim) {
+        b.innerText = 'Simulation Active';
+        b.className = 'text-xs px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800';
+      } else {
+        b.innerText = 'Live Node Mode';
+        b.className = 'text-xs px-2 py-0.5 rounded bg-indigo-950 text-indigo-400 border border-indigo-800';
+      }
     }
 
     async function saveConfig() {
+      const isSim = document.getElementById('modeSim').checked;
+      currentConfig.simulationMode = isSim;
       currentConfig.primaryNode.rpcEndpoint = document.getElementById('cfgPrimaryRpc').value;
       currentConfig.primaryNode.proxyName = document.getElementById('cfgPrimaryProxy').value;
       currentConfig.backupNode.rpcEndpoint = document.getElementById('cfgBackupRpc').value;
@@ -245,6 +287,7 @@
         body: JSON.stringify(currentConfig)
       });
 
+      updateBadge(isSim);
       toggleConfigModal();
     }
 
@@ -275,7 +318,7 @@
         <span class="text-[8px] mt-1 px-1 rounded ${isBackup ? 'bg-amber-800' : 'bg-slate-700'}">${isBackup ? 'BACKUP' : 'PRIMARY'}</span>
       `;
       timeline.appendChild(box);
-      if (timeline.children.length > 12) timeline.removeChild(timeline.children[0]);
+      if (timeline.children.length > 18) timeline.removeChild(timeline.children[0]);
     }
 
     function showEquivocationAlert(proof) {
@@ -291,6 +334,8 @@
       document.getElementById('primarySlot').innerText = data.primary.slot || '--';
       document.getElementById('primaryEgress').innerText = data.primary.stalled ? 'SEVERED' : 'NORMAL';
       document.getElementById('primaryEgress').className = data.primary.stalled ? 'text-rose-500 font-bold' : 'text-emerald-400 font-bold';
+      document.getElementById('primaryActive').innerText = data.primary.active ? 'ONLINE' : 'OFFLINE';
+      document.getElementById('primaryActive').className = data.primary.active ? 'text-[10px] px-2 py-0.5 rounded bg-emerald-950 border border-emerald-800 text-emerald-300 font-bold' : 'text-[10px] px-2 py-0.5 rounded bg-rose-950 border border-rose-800 text-rose-300 font-bold';
 
       document.getElementById('backupHeight').innerText = data.backup.height || '--';
       document.getElementById('backupSlot').innerText = data.backup.slot || '--';

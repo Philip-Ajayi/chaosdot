@@ -23,23 +23,31 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Read baseline config from YAML if present
+// Determine simulation mode: default to true on cloud hosting when pointing to 127.0.0.1
+const primaryRpcEnv = process.env.PRIMARY_RPC || 'ws://127.0.0.1:9944';
+const backupRpcEnv = process.env.BACKUP_RPC || 'ws://127.0.0.1:9945';
+const simModeEnv = process.env.SIMULATION_MODE;
+
+const isDefaultLocal = primaryRpcEnv.includes('127.0.0.1') || primaryRpcEnv.includes('localhost');
+const initialSimMode = simModeEnv !== undefined ? simModeEnv === 'true' : isDefaultLocal;
+
 let activeConfig: ValidatorClusterConfig = {
   network: 'portaldot-live',
   consensus: 'AURA-BABE',
-  slotDurationMs: 6000,
+  slotDurationMs: Number(process.env.SLOT_DURATION_MS) || 3000,
+  simulationMode: initialSimMode,
   toxiproxyUrl: process.env.TOXIPROXY_URL || 'http://127.0.0.1:8474',
   primaryNode: {
     id: 'portaldot-val-01',
-    rpcEndpoint: 'ws://127.0.0.1:9944',
+    rpcEndpoint: primaryRpcEnv,
     proxyName: 'primary-portaldot',
-    authoringKey: '0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d'
+    authoringKey: process.env.VALIDATOR_KEY || '0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d'
   },
   backupNode: {
     id: 'portaldot-val-02',
-    rpcEndpoint: 'ws://127.0.0.1:9945',
+    rpcEndpoint: backupRpcEnv,
     proxyName: 'backup-portaldot',
-    authoringKey: '0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d'
+    authoringKey: process.env.VALIDATOR_KEY || '0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d'
   },
   pacemaker: {
     heartbeatTimeoutMs: 6000,
@@ -54,19 +62,13 @@ if (fs.existsSync(configPath)) {
     const rawYaml = fs.readFileSync(configPath, 'utf8');
     const parsed = YAML.parse(rawYaml);
     if (parsed.nodes) {
-      activeConfig.primaryNode.rpcEndpoint = parsed.nodes.primary?.rpc_endpoint || activeConfig.primaryNode.rpcEndpoint;
-      activeConfig.primaryNode.proxyName = parsed.nodes.primary?.proxy_name || activeConfig.primaryNode.proxyName;
-      activeConfig.primaryNode.authoringKey = parsed.nodes.primary?.authoring_key || activeConfig.primaryNode.authoringKey;
-
-      activeConfig.backupNode.rpcEndpoint = parsed.nodes.backup?.rpc_endpoint || activeConfig.backupNode.rpcEndpoint;
-      activeConfig.backupNode.proxyName = parsed.nodes.backup?.proxy_name || activeConfig.backupNode.proxyName;
-      activeConfig.backupNode.authoringKey = parsed.nodes.backup?.authoring_key || activeConfig.backupNode.authoringKey;
+      if (!process.env.PRIMARY_RPC && parsed.nodes.primary?.rpc_endpoint) activeConfig.primaryNode.rpcEndpoint = parsed.nodes.primary.rpc_endpoint;
+      if (!process.env.BACKUP_RPC && parsed.nodes.backup?.rpc_endpoint) activeConfig.backupNode.rpcEndpoint = parsed.nodes.backup.rpc_endpoint;
+      if (parsed.nodes.primary?.authoring_key) activeConfig.primaryNode.authoringKey = parsed.nodes.primary.authoring_key;
+      if (parsed.nodes.backup?.authoring_key) activeConfig.backupNode.authoringKey = parsed.nodes.backup.authoring_key;
     }
-    if (parsed.toxiproxy?.url) activeConfig.toxiproxyUrl = parsed.toxiproxy.url;
-    if (parsed.cluster?.slot_duration_ms) activeConfig.slotDurationMs = parsed.cluster.slot_duration_ms;
-    if (parsed.pacemaker?.heartbeat_timeout_ms) activeConfig.pacemaker.heartbeatTimeoutMs = parsed.pacemaker.heartbeat_timeout_ms;
   } catch (err: any) {
-    console.error(`Failed to parse validator-setup.yml: ${err.message}`);
+    console.warn(`[WARN] Config file parse skipped: ${err.message}`);
   }
 }
 
@@ -94,7 +96,7 @@ async function attachCluster() {
           broadcast({ type: 'equivocation', data: proof });
           broadcast({
             type: 'log',
-            data: `🚨 [EQUIVOCATION DETECTED]: Conflicting signatures at Slot #${proof.slotNumber}`
+            data: `🚨 [EQUIVOCATION DETECTED]: Dual-proposals at Slot #${proof.slotNumber}! Slashed under NPoS consensus.`
           });
         }
       },
@@ -103,7 +105,10 @@ async function attachCluster() {
       }
     );
   } catch (err: any) {
-    broadcast({ type: 'log', data: `[INIT ERROR] Could not connect to nodes: ${err.message}` });
+    broadcast({
+      type: 'log',
+      data: `[INIT ERROR] Could not connect to live nodes: ${err.message}. Switch to Simulation Mode in settings to run standalone.`
+    });
   }
 }
 
@@ -141,7 +146,8 @@ app.post('/api/toxic/latency', async (req, res) => {
       attributes: { latency: Number(latency) || 0, jitter: Number(jitter) || 0 }
     });
 
-    broadcast({ type: 'log', data: `[CHAOS] Injected ${latency}ms latency on ${cfg.primaryNode.proxyName}` });
+    cluster.getPrimaryClient().setSimulatedLatency(Number(latency) || 0);
+    broadcast({ type: 'log', data: `[CHAOS] Injected ${latency}ms latency onto ${cfg.primaryNode.proxyName}` });
     res.json({ ok: true });
   } catch (e: any) {
     res.status(500).json({ ok: false, error: e.message });
@@ -207,7 +213,9 @@ setInterval(() => {
 
 server.listen(PORT, () => {
   console.log(`\n======================================================`);
-  console.log(`🛡️  ChaosDot Live Node Controller at http://localhost:${PORT}`);
-  console.log(`📡 WebSocket consensus stream connected.`);
+  console.log(`🛡️  ChaosDot Server running on port ${PORT}`);
+  console.log(`Consensus Mode: ${activeConfig.simulationMode ? 'Virtual Simulation' : 'Live WebSocket RPC'}`);
+  console.log(`Primary RPC: ${activeConfig.primaryNode.rpcEndpoint}`);
+  console.log(`Backup RPC:  ${activeConfig.backupNode.rpcEndpoint}`);
   console.log(`======================================================\n`);
 });

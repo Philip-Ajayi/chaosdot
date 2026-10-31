@@ -39,6 +39,16 @@ export class SlotDecoder {
     return 0;
   }
 
+  /**
+   * Authentic Substrate SCALE Digest Encoder for Aura.
+   * Produces [0x06 (pre-runtime type), 'aura' (4 bytes), Slot (u64 Little Endian, 8 bytes)]
+   */
+  public static encodeAuraDigest(slotNumber: number): string {
+    const buf = Buffer.alloc(8);
+    buf.writeBigUInt64LE(BigInt(slotNumber), 0);
+    return '0x0661757261' + buf.toString('hex');
+  }
+
   public static verifyHeaderIntegrity(header: SubstrateHeader): boolean {
     return (
       header.hash.startsWith('0x') &&

@@ -21,6 +21,7 @@ export interface ValidatorClusterConfig {
   network: string;
   consensus: string;
   slotDurationMs: number;
+  simulationMode: boolean;
   toxiproxyUrl: string;
   primaryNode: NodeConfig;
   backupNode: NodeConfig;
