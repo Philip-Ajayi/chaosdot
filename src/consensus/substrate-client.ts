@@ -13,14 +13,14 @@ export class SubstrateRpcClient {
   private defaultAuthorKey: string;
   private simulatedLatencyMs = 0;
 
-  constructor(url: string, defaultAuthorKey = '', simulated = false) {
+  constructor(url: string, defaultAuthorKey = '', simulated?: boolean) {
     this.url = url;
     this.defaultAuthorKey = defaultAuthorKey;
-    this.isSimulated = simulated;
+    this.isSimulated = Boolean(simulated);
   }
 
-  public setSimulated(simulated: boolean): void {
-    this.isSimulated = simulated;
+  public setSimulated(simulated?: boolean): void {
+    this.isSimulated = Boolean(simulated);
   }
 
   public setSimulatedLatency(ms: number): void {

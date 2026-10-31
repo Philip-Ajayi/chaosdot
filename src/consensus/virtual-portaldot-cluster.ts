@@ -22,11 +22,15 @@ export class VirtualPortaldotCluster {
   private onLogCallback: ((msg: string) => void) | null = null;
 
   constructor(customConfig?: Partial<ValidatorClusterConfig>) {
+    const simMode = customConfig?.simulationMode !== undefined 
+      ? Boolean(customConfig.simulationMode) 
+      : true;
+
     this.config = {
       network: customConfig?.network || 'portaldot-live',
       consensus: customConfig?.consensus || 'AURA-BABE',
       slotDurationMs: customConfig?.slotDurationMs || 3000,
-      simulationMode: customConfig?.simulationMode !== undefined ? customConfig.simulationMode : true,
+      simulationMode: simMode,
       toxiproxyUrl: customConfig?.toxiproxyUrl || 'http://127.0.0.1:8474',
       primaryNode: customConfig?.primaryNode || {
         id: 'portaldot-val-01',
@@ -47,36 +51,39 @@ export class VirtualPortaldotCluster {
       }
     };
 
+    const isSim = Boolean(this.config.simulationMode);
     this.toxiproxy = new ToxiproxyHarness(this.config.toxiproxyUrl);
-    this.toxiproxy.setVirtualMode(this.config.simulationMode);
+    this.toxiproxy.setVirtualMode(isSim);
 
     this.primaryClient = new SubstrateRpcClient(
       this.config.primaryNode.rpcEndpoint,
       this.config.primaryNode.authoringKey,
-      this.config.simulationMode
+      isSim
     );
     this.backupClient = new SubstrateRpcClient(
       this.config.backupNode.rpcEndpoint,
       this.config.backupNode.authoringKey,
-      this.config.simulationMode
+      isSim
     );
   }
 
   public updateConfig(newConfig: ValidatorClusterConfig): void {
     this.stop();
     this.config = newConfig;
+
+    const isSim = Boolean(newConfig.simulationMode);
     this.toxiproxy.setHost(newConfig.toxiproxyUrl);
-    this.toxiproxy.setVirtualMode(newConfig.simulationMode);
+    this.toxiproxy.setVirtualMode(isSim);
 
     this.primaryClient = new SubstrateRpcClient(
       newConfig.primaryNode.rpcEndpoint,
       newConfig.primaryNode.authoringKey,
-      newConfig.simulationMode
+      isSim
     );
     this.backupClient = new SubstrateRpcClient(
       newConfig.backupNode.rpcEndpoint,
       newConfig.backupNode.authoringKey,
-      newConfig.simulationMode
+      isSim
     );
   }
 
@@ -91,7 +98,7 @@ export class VirtualPortaldotCluster {
     this.onBlockCallback = onBlock;
     this.onLogCallback = onLog;
 
-    if (this.config.simulationMode) {
+    if (Boolean(this.config.simulationMode)) {
       this.log('🛡️ Initialized Virtual Substrate Consensus Engine (Standalone Simulation Mode).');
       this.startSimulationTicker();
       return;
@@ -188,10 +195,6 @@ export class VirtualPortaldotCluster {
     this.log(`Egress on ${target.id} (${target.proxyName}): ${stall ? 'SEVERED' : 'RESTORED'}`);
   }
 
-  /**
-   * Intentionally generates conflicting block proposals for the exact same slot
-   * to simulate split-brain keystore contention under Byzantine conditions.
-   */
   public async triggerSplitBrainKeystore(): Promise<void> {
     this.log('Severing network partition lock. Inducing concurrent keystore authoring...');
 
@@ -260,20 +263,21 @@ export class VirtualPortaldotCluster {
   }
 
   public getStatus() {
+    const isSim = Boolean(this.config.simulationMode);
     return {
-      simulationMode: this.config.simulationMode,
+      simulationMode: isSim,
       primary: {
         id: this.config.primaryNode.id,
         height: this.primaryHeight,
         slot: this.primarySlot,
-        active: this.config.simulationMode ? !this.primaryStalled : this.primaryClient.active(),
+        active: isSim ? !this.primaryStalled : this.primaryClient.active(),
         stalled: this.primaryStalled
       },
       backup: {
         id: this.config.backupNode.id,
         height: this.backupHeight,
         slot: this.backupSlot,
-        active: this.config.simulationMode ? true : this.backupClient.active(),
+        active: isSim ? true : this.backupClient.active(),
         stalled: this.backupStalled
       }
     };

@@ -14,8 +14,8 @@ export class ToxiproxyHarness {
     this.toxiproxyHost = host.replace(/\/$/, '');
   }
 
-  public setVirtualMode(virtual: boolean): void {
-    this.isVirtual = virtual;
+  public setVirtualMode(virtual?: boolean): void {
+    this.isVirtual = Boolean(virtual);
   }
 
   public async verifyHealth(): Promise<boolean> {
