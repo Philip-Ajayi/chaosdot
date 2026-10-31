@@ -24,6 +24,7 @@ program
   .option('-b, --backup-rpc <url>', 'Backup node WebSocket RPC URL')
   .option('-t, --toxiproxy <url>', 'Toxiproxy REST API URL')
   .option('-k, --validator-key <key>', 'Target validator public key')
+  .option('-s, --simulation', 'Run in standalone simulation mode without live blockchain nodes', false)
   .option('-o, --output <path>', 'Destination for HTML certification report', './chaosdot-audit.html')
   .action(async (options) => {
     console.log(chalk.bold.magenta('\n==============================================================='));
@@ -34,6 +35,7 @@ program
       network: 'portaldot-live',
       consensus: 'AURA-BABE',
       slotDurationMs: 6000,
+      simulationMode: Boolean(options.simulation),
       toxiproxyUrl: options.toxiproxy || 'http://127.0.0.1:8474',
       primaryNode: {
         id: 'portaldot-val-01',
@@ -78,11 +80,11 @@ program
         (log) => console.log(chalk.gray(log))
       );
     } catch (err: any) {
-      console.error(chalk.red(`\n[FATAL] Unable to connect to live cluster nodes: ${err.message}`));
+      console.error(chalk.red(`\n[FATAL] Unable to connect to cluster nodes: ${err.message}`));
       process.exit(1);
     }
 
-    console.log(chalk.yellow('\n[RUNNING] Executing consensus scenarios against live endpoints...\n'));
+    console.log(chalk.yellow('\n[RUNNING] Executing consensus scenarios against target endpoints...\n'));
 
     const report = await ScenarioRegistry.runAll(cluster, detector, (msg) => {
       console.log(chalk.white(msg));
