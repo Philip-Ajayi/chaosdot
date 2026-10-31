@@ -2,28 +2,50 @@ import { SubstrateHeader } from '../types';
 
 export class SlotDecoder {
   /**
-   * Substrate block digest extraction logic.
-   * Extracts slot number from Babel/Aura/LAO engine pre-runtime digests.
+   * Authentic Substrate SCALE Digest Decoder.
+   * Extracts slot number from AURA (0x61757261) and BABE (0x42414245) pre-runtime digests.
    */
   public static extractSlot(rawDigestLogs: string[]): number {
+    if (!rawDigestLogs || !Array.isArray(rawDigestLogs)) {
+      return 0;
+    }
+
     for (const log of rawDigestLogs) {
-      if (log.startsWith('0x0442414245') || log.startsWith('0x0441555241') || log.startsWith('0x044c414f')) {
-        // Hex slice simulated: 4 bytes engine tag, followed by u64 slot
-        const rawHex = log.slice(10);
-        const slot = parseInt(rawHex.slice(0, 8), 16);
-        if (!isNaN(slot) && slot > 0) return slot;
+      const cleanHex = log.startsWith('0x') ? log.slice(2) : log;
+      if (cleanHex.length < 10) continue;
+
+      // Extract consensus engine ID (4 bytes = 8 hex characters after 1 byte digest type)
+      const engineTag = cleanHex.slice(2, 10).toLowerCase();
+
+      // Aura Pre-Runtime Digest: [0x06 (type), 'aura' (4 bytes), Slot (u64 LE, 8 bytes)]
+      if (engineTag === '61757261') {
+        const slotHex = cleanHex.slice(10, 26);
+        if (slotHex.length === 16) {
+          const buf = Buffer.from(slotHex, 'hex');
+          return Number(buf.readBigUInt64LE(0));
+        }
+      }
+
+      // BABE Pre-Runtime Digest: [0x06 (type), 'BABE' (4 bytes), Variant (1 byte), Slot (u64 LE, 8 bytes)]
+      if (engineTag === '42414245') {
+        const slotHex = cleanHex.slice(12, 28);
+        if (slotHex.length === 16) {
+          const buf = Buffer.from(slotHex, 'hex');
+          return Number(buf.readBigUInt64LE(0));
+        }
       }
     }
-    // Fallback deterministic epoch calculation: 6-second slot standard
-    return Math.floor(Date.now() / 6000);
+
+    return 0;
   }
 
   public static verifyHeaderIntegrity(header: SubstrateHeader): boolean {
     return (
+      header.hash.startsWith('0x') &&
       header.hash.length === 66 &&
+      header.parentHash.startsWith('0x') &&
       header.parentHash.length === 66 &&
-      header.slotNumber > 0 &&
-      header.authorPublicKey.startsWith('0x')
+      header.number >= 0
     );
   }
 }

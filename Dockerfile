@@ -11,6 +11,7 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install --only=production
 COPY --from=builder /app/dist ./dist
+COPY validator-setup.yml ./
 
 ENV PORT=3000
 EXPOSE 3000

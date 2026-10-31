@@ -1,7 +1,7 @@
 {
   "name": "chaosdot",
-  "version": "1.0.0",
-  "description": "Autonomous Slashing Resilience Fuzzer & Consensus Verifier for Portaldot",
+  "version": "2.0.0",
+  "description": "Live Consensus-Aware Slashing Fuzzer & Real-Time Fault Injection Engine for Substrate & Portaldot",
   "main": "dist/cli/index.js",
   "bin": {
     "chaosdot": "dist/cli/index.js"

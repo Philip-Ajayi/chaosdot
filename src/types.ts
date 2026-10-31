@@ -6,8 +6,29 @@ export interface SubstrateHeader {
   extrinsicsRoot: string;
   slotNumber: number;
   authorPublicKey: string;
-  signature: string;
+  digestLogs: string[];
   timestamp: number;
+}
+
+export interface NodeConfig {
+  id: string;
+  rpcEndpoint: string;
+  proxyName: string;
+  authoringKey: string;
+}
+
+export interface ValidatorClusterConfig {
+  network: string;
+  consensus: string;
+  slotDurationMs: number;
+  toxiproxyUrl: string;
+  primaryNode: NodeConfig;
+  backupNode: NodeConfig;
+  pacemaker: {
+    heartbeatTimeoutMs: number;
+    failoverLock: string;
+    fencingTokenEnabled: boolean;
+  };
 }
 
 export interface EquivocationProof {
@@ -24,14 +45,10 @@ export interface EquivocationProof {
 
 export interface ToxicConfig {
   name: string;
-  type: 'latency' | 'bandwidth' | 'drop' | 'corruption';
+  type: 'latency' | 'bandwidth' | 'drop' | 'slicer' | 'timeout' | 'reset_peer';
   stream: 'upstream' | 'downstream';
-  toxicity: number; // 0.0 to 1.0
-  attributes: {
-    latency?: number;
-    jitter?: number;
-    rate?: number; // bytes per sec
-  };
+  toxicity: number;
+  attributes: Record<string, number | boolean | string>;
 }
 
 export type ScenarioType =
@@ -58,6 +75,7 @@ export interface SlashingAuditReport {
     backupNode: string;
     targetValidatorKey: string;
     pacemakerLeaseMs: number;
+    toxiproxyUrl: string;
   };
   overallHardeningScore: number;
   verdict: 'CERTIFIED_IMMUNE' | 'CRITICAL_RISK' | 'WARNING';

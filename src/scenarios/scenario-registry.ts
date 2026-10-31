@@ -22,7 +22,6 @@ export class ScenarioRegistry {
     const res3 = await MempoolBackpressureScenario.run(cluster, detector, log);
     results.push(res3);
 
-    // Compute Hardening Score (Base 100)
     let score = 100;
     const recommendations: string[] = [];
 
@@ -36,14 +35,16 @@ export class ScenarioRegistry {
     if (score < 0) score = 0;
 
     const verdict = score >= 90 ? 'CERTIFIED_IMMUNE' : score >= 60 ? 'WARNING' : 'CRITICAL_RISK';
+    const config = cluster.getConfig();
 
     return {
       timestamp: new Date().toISOString(),
       clusterConfig: {
-        primaryNode: 'portaldot-primary-01.internal',
-        backupNode: 'portaldot-backup-02.internal',
-        targetValidatorKey: '0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d',
-        pacemakerLeaseMs: 6000
+        primaryNode: config.primaryNode.rpcEndpoint,
+        backupNode: config.backupNode.rpcEndpoint,
+        targetValidatorKey: config.primaryNode.authoringKey,
+        pacemakerLeaseMs: config.pacemaker.heartbeatTimeoutMs,
+        toxiproxyUrl: config.toxiproxyUrl
       },
       overallHardeningScore: score,
       verdict,

@@ -10,7 +10,6 @@ export class SplitBrainKeystoreScenario {
   ): Promise<ScenarioResult> {
     log('===============================================================');
     log('SCENARIO 2: Split-Brain Keystore (Dual Concurrent Authors)');
-    log('Objective: Force secondary spin-up while primary holds authoring lock.');
     log('===============================================================');
 
     detector.reset();
@@ -20,18 +19,17 @@ export class SplitBrainKeystoreScenario {
       log(m);
     };
 
-    logger('[Step 1] Baseline synchronization confirmed.');
-    await new Promise((r) => setTimeout(r, 3000));
+    logger('[Step 1] Priming both live nodes...');
+    await cluster.resolveFailover();
 
-    logger('[Step 2] Inducing distributed lock lease race (Split-Brain trigger)...');
-    cluster.triggerSplitBrainKeystore();
+    logger('[Step 2] Triggering split-brain partition race via Toxiproxy...');
+    await cluster.triggerSplitBrainKeystore();
 
-    logger('[Step 3] Listening for slot collision between Node 01 and Node 02...');
-    await new Promise((r) => setTimeout(r, 6000));
+    logger('[Step 3] Listening for live equivocation collisions on active slots...');
+    await new Promise((r) => setTimeout(r, cluster.getConfig().slotDurationMs * 2));
 
-    logger('[Step 4] Quarantining secondary node and releasing authoring lease...');
-    cluster.resolveFailover();
-    await new Promise((r) => setTimeout(r, 2000));
+    logger('[Step 4] Normalizing routes...');
+    await cluster.resolveFailover();
 
     const proofs = detector.getProofs();
     const equivocation = proofs.length > 0;
@@ -42,11 +40,11 @@ export class SplitBrainKeystoreScenario {
       passed: !equivocation,
       scoreDeduction: equivocation ? 50 : 0,
       equivocationDetected: equivocation,
-      blocksEvaluated: 5,
+      blocksEvaluated: proofs.length > 0 ? 2 : 1,
       proofs,
       recommendation: equivocation
-        ? 'FAIL: Distributed key lock failed. Implement Raft/etcd distributed authoring key locks with mutual fencing.'
-        : 'PASS: Keystore locking mechanism successfully fenced out secondary candidate.',
+        ? 'FAIL: Distributed key lock failed. Implement Raft or etcd key fencing leases.'
+        : 'PASS: Keystore locking successfully prevented dual signing.',
       logs
     };
   }

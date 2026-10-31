@@ -1,23 +1,26 @@
-version: "1.0"
+version: "2.0"
 cluster:
-  network: "portaldot-mainnet"
-  consensus: "LAO-NPoS"
+  network: "portaldot-live"
+  consensus: "AURA-BABE"
   slot_duration_ms: 6000
+
+toxiproxy:
+  url: "http://127.0.0.1:8474"
 
 nodes:
   primary:
     id: "portaldot-val-01"
     rpc_endpoint: "ws://127.0.0.1:9944"
-    keystore_path: "/var/lib/portaldot/chains/mainnet/keystore"
-    authoring: true
+    proxy_name: "primary-portaldot"
+    authoring_key: "0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d"
 
   backup:
     id: "portaldot-val-02"
     rpc_endpoint: "ws://127.0.0.1:9945"
-    keystore_path: "/var/lib/portaldot/chains/mainnet/keystore_backup"
-    authoring: false
+    proxy_name: "backup-portaldot"
+    authoring_key: "0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d"
 
 pacemaker:
-  heartbeat_timeout_ms: 6000 # WARNING: Fails under high jitter; recommend 12000ms
+  heartbeat_timeout_ms: 6000
   failover_lock: "raft"
   fencing_token_enabled: true

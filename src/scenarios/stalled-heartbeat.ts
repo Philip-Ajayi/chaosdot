@@ -10,7 +10,6 @@ export class StalledHeartbeatScenario {
   ): Promise<ScenarioResult> {
     log('===============================================================');
     log('SCENARIO 1: Stalled Heartbeat (Egress Dropout at Session Boundary)');
-    log('Objective: Verify pacemaker timeout prevents premature takeover.');
     log('===============================================================');
 
     detector.reset();
@@ -20,18 +19,20 @@ export class StalledHeartbeatScenario {
       log(m);
     };
 
-    logger('[Step 1] Baseline operational state: 2 consecutive slot cycles.');
-    await new Promise((r) => setTimeout(r, 4000));
+    const cfg = cluster.getConfig();
+    logger(`[Step 1] Verifying live primary RPC connection at ${cfg.primaryNode.rpcEndpoint}...`);
 
-    logger('[Step 2] Severing network egress on Primary Validator (Toxiproxy packet cut)...');
-    cluster.injectStall('PRIMARY', true);
+    await cluster.getPrimaryClient().call('system_health', []);
+    logger('[Step 2] Primary node RPC is responsive. Severing egress via Toxiproxy...');
 
-    logger('[Step 3] Monitoring backup heartbeat auditor for 6000ms...');
-    await new Promise((r) => setTimeout(r, 6000));
+    await cluster.injectStall('PRIMARY', true);
 
-    logger('[Step 4] Restoring primary egress before pacemaker timeout expires...');
-    cluster.injectStall('PRIMARY', false);
-    await new Promise((r) => setTimeout(r, 3000));
+    const waitMs = cfg.pacemaker.heartbeatTimeoutMs;
+    logger(`[Step 3] Monitoring cluster for ${waitMs}ms across failover window...`);
+    await new Promise((r) => setTimeout(r, waitMs));
+
+    logger('[Step 4] Restoring primary network egress...');
+    await cluster.injectStall('PRIMARY', false);
 
     const proofs = detector.getProofs();
     const passed = proofs.length === 0;
@@ -42,11 +43,11 @@ export class StalledHeartbeatScenario {
       passed,
       scoreDeduction: passed ? 0 : 25,
       equivocationDetected: !passed,
-      blocksEvaluated: 6,
+      blocksEvaluated: proofs.length > 0 ? 2 : 1,
       proofs,
       recommendation: passed
-        ? 'Pacemaker grace interval is adequate. No premature secondary signing occurred.'
-        : 'CRITICAL: Increase pacemaker failover threshold from 6000ms to 12000ms in validator-setup.yml.',
+        ? 'Pacemaker grace interval held. Backup node did not author concurrently.'
+        : `CRITICAL: Pacemaker timeout threshold (${waitMs}ms) is too aggressive. Increase heartbeat_timeout_ms.`,
       logs
     };
   }

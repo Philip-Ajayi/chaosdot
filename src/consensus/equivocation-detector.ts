@@ -4,14 +4,13 @@ export class EquivocationDetector {
   private slotRegistry: Map<number, SubstrateHeader[]> = new Map();
   private detectedProofs: EquivocationProof[] = [];
 
-  /**
-   * Ingest a proposed header signed by a validator node.
-   * Analyzes for duplicate signing at identical slot or identical block height.
-   */
   public processHeader(header: SubstrateHeader): EquivocationProof | null {
+    if (header.slotNumber <= 0) {
+      return null;
+    }
+
     const existingForSlot = this.slotRegistry.get(header.slotNumber) || [];
 
-    // Verify if same validator authored an opposing block at the same slot
     const collision = existingForSlot.find(
       (existing) =>
         existing.authorPublicKey === header.authorPublicKey &&
@@ -31,7 +30,7 @@ export class EquivocationDetector {
         secondHeader: header,
         timestamp: Date.now(),
         slashingRisk: 'EXTREME',
-        description: `Dual block proposal detected at slot #${header.slotNumber}. Node published conflicting hashes: [${collision.hash.substring(0, 10)}...] vs [${header.hash.substring(0, 10)}...]. This triggers an immediate 100% equivocation slash on Portaldot.`
+        description: `Dual block proposal detected at slot #${header.slotNumber}. Conflicting block hashes published: [${collision.hash}] vs [${header.hash}]. Slashed under NPoS consensus.`
       };
 
       this.detectedProofs.push(proof);
